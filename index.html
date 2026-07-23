@@ -1,0 +1,931 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pangeia · Dashboard de Inventário</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+:root{
+  --roxo:#592C95;--roxo-esc:#3D1B6B;--roxo-cl:#AE76E5;
+  --lav:#E4D4F9;--lav-l:#F5EEFB;--amarelo:#FFD23F;
+  --txt:#2A1655;--txt-s:#6B5B8E;--brd:#D9C7F0;
+  --ok:#0F6E56;--ok-bg:#dcfce7;--ok-txt:#166534;
+  --bad:#A32D2D;--bad-bg:#fee2e2;--bad-txt:#991b1b;
+  --warn-bg:#fef3c7;--warn-txt:#854d0e;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:-apple-system,'Segoe UI',sans-serif;background:linear-gradient(135deg,#F5EEFB,#fff);color:var(--txt);min-height:100vh;padding:20px;font-size:14px;}
+.wrap{max-width:1400px;margin:0 auto;}
+
+/* TOPBAR */
+.topbar{background:linear-gradient(135deg,var(--roxo),var(--roxo-esc));border-radius:14px;padding:18px 24px;margin-bottom:18px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;position:relative;overflow:hidden;}
+.topbar::before{content:'';position:absolute;right:-50px;top:-50px;width:200px;height:200px;background:var(--amarelo);opacity:.08;border-radius:50%;}
+.tb-l{position:relative;z-index:1;}
+.brand{display:inline-block;background:var(--amarelo);color:var(--roxo-esc);padding:3px 10px;border-radius:20px;font-size:10px;font-weight:700;letter-spacing:1px;margin-bottom:8px;}
+.topbar h1{font-size:20px;font-weight:800;color:#fff;}
+.topbar h1 span{color:var(--amarelo);}
+.tb-r{display:flex;gap:8px;align-items:center;flex-wrap:wrap;position:relative;z-index:1;}
+.inv-select{background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);color:#fff;padding:8px 14px;border-radius:8px;font-size:12px;font-family:inherit;outline:none;cursor:pointer;min-width:220px;}
+.inv-select option{background:var(--roxo-esc);color:#fff;}
+.tbtn{padding:8px 16px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;border:none;transition:all .15s;}
+.tbtn-white{background:#fff;color:var(--roxo);}
+.tbtn-yellow{background:var(--amarelo);color:var(--roxo-esc);}
+.tbtn-outline{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.25);color:rgba(255,255,255,.9);}
+#badge-live{display:inline-flex;align-items:center;gap:6px;background:rgba(255,255,255,.15);padding:5px 12px;border-radius:20px;font-size:11px;font-weight:700;color:#fff;}
+#badge-live .dot{width:8px;height:8px;border-radius:50%;background:#4ade80;animation:pulse 1.5s infinite;}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.6;transform:scale(1.3)}}
+
+/* KPI */
+.kpi-grid{display:grid;gap:10px;margin-bottom:14px;}
+.kpi-grid.r3{grid-template-columns:repeat(3,1fr);}
+.kpi-grid.r4{grid-template-columns:repeat(4,1fr);}
+.kpi-grid.r5{grid-template-columns:repeat(5,1fr);}
+.kpi{background:#fff;border-radius:12px;border:1px solid var(--brd);padding:14px 16px;box-shadow:0 2px 8px rgba(89,44,149,.06);}
+.kpi-lbl{font-size:10px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;margin-bottom:6px;color:var(--txt-s);}
+.kpi-val{font-size:32px;font-weight:800;line-height:1;margin-bottom:4px;color:var(--roxo);}
+.kpi-sub{font-size:11px;color:var(--txt-s);}
+.kpi-ft{margin-top:8px;background:var(--lav-l);border-radius:6px;padding:6px 10px;display:flex;justify-content:space-between;}
+.kpi-ft-l{font-size:10px;color:var(--txt-s);}
+.kpi-ft-v{font-size:11px;font-weight:700;}
+
+/* CARDS */
+.card{background:#fff;border-radius:12px;border:1px solid var(--brd);padding:16px 18px;box-shadow:0 2px 8px rgba(89,44,149,.06);margin-bottom:14px;}
+.ct{font-size:11px;font-weight:800;color:var(--roxo);text-transform:uppercase;letter-spacing:.07em;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center;}
+.ct span{font-size:10px;color:var(--txt-s);font-weight:400;text-transform:none;letter-spacing:0;}
+
+/* GRID LAYOUTS */
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+.g3{display:grid;grid-template-columns:2fr 1fr;gap:14px;}
+.g4{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:14px;}
+.cw{position:relative;height:220px;}
+.cw.tall{height:280px;}
+
+/* TABS */
+.tabs{display:flex;gap:4px;margin-bottom:16px;background:#fff;padding:5px;border-radius:10px;border:1px solid var(--brd);width:fit-content;}
+.tab{padding:9px 22px;border-radius:7px;font-size:13px;font-weight:700;cursor:pointer;color:var(--txt-s);border:none;background:transparent;}
+.tab.active{background:linear-gradient(135deg,var(--roxo),var(--roxo-esc));color:#fff;box-shadow:0 3px 10px rgba(89,44,149,.3);}
+.tc{display:none;}
+.tc.active{display:block;}
+
+/* TABLE */
+.tw{overflow:auto;max-height:400px;border-radius:8px;border:1px solid var(--brd);}
+table{width:100%;border-collapse:collapse;font-size:12px;}
+thead{position:sticky;top:0;z-index:5;}
+th{background:var(--roxo-esc);color:#fff;padding:9px 12px;text-align:left;font-weight:700;font-size:10px;letter-spacing:.07em;text-transform:uppercase;white-space:nowrap;}
+th.r{text-align:right;}
+tbody tr{border-bottom:1px solid var(--lav-l);cursor:pointer;}
+tbody tr:nth-child(even){background:var(--lav-l);}
+tbody tr:hover{background:var(--lav);}
+td{padding:8px 12px;vertical-align:middle;}
+td.r{text-align:right;font-weight:600;}
+
+/* PILLS */
+.pill{padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;display:inline-block;}
+.p-ok{background:var(--ok-bg);color:var(--ok-txt);}
+.p-wn{background:var(--warn-bg);color:var(--warn-txt);}
+.p-bd{background:var(--bad-bg);color:var(--bad-txt);}
+
+/* COLAB BAR */
+.colab-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--lav-l);}
+.colab-row:last-child{border-bottom:none;}
+.colab-name{font-size:12px;font-weight:700;width:110px;flex-shrink:0;}
+.colab-bar-wrap{flex:1;height:8px;background:var(--lav-l);border-radius:4px;overflow:hidden;}
+.colab-bar{height:8px;border-radius:4px;background:linear-gradient(90deg,var(--roxo),var(--roxo-cl));transition:width .5s;}
+.colab-num{font-size:12px;font-weight:700;color:var(--roxo);width:60px;text-align:right;flex-shrink:0;}
+.colab-pct{font-size:10px;color:var(--txt-s);width:36px;text-align:right;flex-shrink:0;}
+
+/* ANOMALIA CARD */
+.anom-row{display:flex;justify-content:space-between;align-items:center;padding:8px 12px;border-radius:8px;border:1px solid var(--bad-bg);background:#fff9f9;margin-bottom:6px;}
+.anom-loc{font-size:13px;font-weight:800;color:var(--bad);}
+.anom-info{font-size:11px;color:var(--txt-s);}
+.anom-badge{background:var(--bad-bg);color:var(--bad-txt);padding:3px 10px;border-radius:20px;font-size:10px;font-weight:700;}
+
+/* EMPTY STATE */
+.empty{text-align:center;padding:40px 20px;color:var(--txt-s);}
+.empty-icon{font-size:40px;margin-bottom:10px;}
+
+/* SPINNER */
+.spinner{display:inline-block;width:16px;height:16px;border:2px solid rgba(89,44,149,.2);border-top-color:var(--roxo);border-radius:50%;animation:spin .7s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* TOAST */
+.toast{position:fixed;bottom:24px;right:24px;background:var(--roxo);color:#fff;padding:12px 20px;border-radius:10px;font-weight:600;font-size:13px;box-shadow:0 8px 24px rgba(89,44,149,.3);opacity:0;transform:translateY(10px);transition:opacity .25s,transform .25s;pointer-events:none;z-index:400;}
+.toast.show{opacity:1;transform:translateY(0);}
+
+.footer{text-align:center;margin-top:20px;padding:14px;color:var(--txt-s);font-size:12px;}
+.footer strong{color:var(--roxo);}
+
+@media(max-width:900px){
+  .kpi-grid.r4,.kpi-grid.r5{grid-template-columns:repeat(2,1fr);}
+  .g2,.g3,.g4{grid-template-columns:1fr;}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- TOPBAR -->
+  <div class="topbar">
+    <div class="tb-l">
+      <div class="brand">PANGEIA 96</div>
+      <h1>Dashboard de <span>Inventário</span></h1>
+    </div>
+    <div class="tb-r">
+      <span id="badge-live"><span class="dot"></span> Tempo real</span>
+      <select class="inv-select" id="sel-inv" onchange="selecionarInventario()">
+        <option value="">⏳ Carregando inventários...</option>
+      </select>
+      <button class="tbtn tbtn-outline" onclick="carregarDados()">↺ Atualizar</button>
+      <button class="tbtn tbtn-white" onclick="exportarExcel()">⬇️ Excel</button>
+      <button class="tbtn tbtn-yellow" onclick="exportarPDF()">📄 PDF</button>
+    </div>
+  </div>
+
+  <!-- KPIs LINHA 1 -->
+  <div class="kpi-grid r5" id="kpi-row1">
+    <div class="kpi">
+      <div class="kpi-lbl">Total de Peças</div>
+      <div class="kpi-val" id="k-pecas">—</div>
+      <div class="kpi-sub" id="k-pecas-sub">—</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-lbl">SKUs Contados</div>
+      <div class="kpi-val" style="color:#185FA5" id="k-skus">—</div>
+      <div class="kpi-sub" id="k-skus-sub">—</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-lbl">Locais Contados</div>
+      <div class="kpi-val" style="color:var(--ok)" id="k-locais">—</div>
+      <div class="kpi-sub" id="k-locais-sub">—</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-lbl" style="color:var(--bad-txt)">Anomalias</div>
+      <div class="kpi-val" style="color:var(--bad)" id="k-anom">—</div>
+      <div class="kpi-sub" id="k-anom-sub">—</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-lbl">Colaboradores</div>
+      <div class="kpi-val" style="color:#7c3aed" id="k-colab">—</div>
+      <div class="kpi-sub" id="k-colab-sub">—</div>
+    </div>
+  </div>
+
+  <!-- KPIs LINHA 2 -->
+  <div class="kpi-grid r4" style="margin-bottom:16px;">
+    <div class="kpi">
+      <div class="kpi-lbl">Início</div>
+      <div class="kpi-val" style="font-size:18px;margin-top:4px;" id="k-inicio">—</div>
+      <div class="kpi-sub" id="k-inicio-sub">Primeiro lançamento</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-lbl">Término</div>
+      <div class="kpi-val" style="font-size:18px;margin-top:4px;" id="k-fim">—</div>
+      <div class="kpi-sub" id="k-fim-sub">Último lançamento</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-lbl">Duração Total</div>
+      <div class="kpi-val" style="font-size:22px;margin-top:4px;" id="k-duracao">—</div>
+      <div class="kpi-sub">Do início ao término</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-lbl" style="color:var(--ok-txt)">Eficiência</div>
+      <div class="kpi-val" style="color:var(--ok);font-size:28px;margin-top:2px;" id="k-efic">—</div>
+      <div class="kpi-sub" id="k-efic-sub">Locais sem anomalia</div>
+      <div class="kpi-ft" id="k-efic-ft" style="display:none;">
+        <span class="kpi-ft-l">Locais c/ anomalia</span>
+        <span class="kpi-ft-v" style="color:var(--bad)" id="k-efic-anom">—</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- TABS -->
+  <div class="tabs">
+    <button class="tab active" onclick="goTab('visao',this)">📊 Visão Geral</button>
+    <button class="tab" onclick="goTab('colab',this)">👥 Colaboradores</button>
+    <button class="tab" onclick="goTab('anomalias',this)">⚠️ Anomalias</button>
+    <button class="tab" onclick="goTab('locais',this)">📍 Locais</button>
+    <button class="tab" onclick="goTab('historico',this)">📋 Histórico</button>
+  </div>
+
+  <!-- TAB: VISÃO GERAL -->
+  <div class="tc active" id="tc-visao">
+    <div class="g2">
+      <div class="card">
+        <div class="ct">Peças por colaborador <span>% do total</span></div>
+        <div id="colab-bars"></div>
+      </div>
+      <div class="card">
+        <div class="ct">Distribuição por hora</div>
+        <div class="cw"><canvas id="chart-hora"></canvas></div>
+      </div>
+    </div>
+    <div class="g3">
+      <div class="card">
+        <div class="ct">Evolução da contagem ao longo do tempo</div>
+        <div class="cw tall"><canvas id="chart-evolucao"></canvas></div>
+      </div>
+      <div class="card">
+        <div class="ct">Status dos locais</div>
+        <div class="cw" style="height:180px;display:flex;align-items:center;justify-content:center;">
+          <canvas id="chart-status" style="max-width:180px;"></canvas>
+        </div>
+        <div id="status-legend" style="margin-top:8px;"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TAB: COLABORADORES -->
+  <div class="tc" id="tc-colab">
+    <div class="g2">
+      <div class="card">
+        <div class="ct">Peças por colaborador</div>
+        <div class="cw tall"><canvas id="chart-colab"></canvas></div>
+      </div>
+      <div class="card">
+        <div class="ct">Lançamentos por colaborador</div>
+        <div class="cw tall"><canvas id="chart-lanc"></canvas></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="ct">Detalhamento por colaborador</div>
+      <div class="tw">
+        <table>
+          <thead><tr>
+            <th>Colaborador</th>
+            <th class="r">Lançamentos</th>
+            <th class="r">Peças</th>
+            <th class="r">% do total</th>
+            <th class="r">Anomalias</th>
+            <th class="r">Locais Vazios</th>
+            <th>Início</th>
+            <th>Término</th>
+          </tr></thead>
+          <tbody id="tb-colab"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- TAB: ANOMALIAS -->
+  <div class="tc" id="tc-anomalias">
+    <div class="kpi-grid r3" style="margin-bottom:14px;">
+      <div class="kpi">
+        <div class="kpi-lbl" style="color:var(--bad-txt)">Total de Anomalias</div>
+        <div class="kpi-val" style="color:var(--bad)" id="ka-total">—</div>
+        <div class="kpi-sub">Locais com itens misturados</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-lbl">Itens em Posição Correta</div>
+        <div class="kpi-val" style="color:var(--ok)" id="ka-pos-correta">—</div>
+        <div class="kpi-sub">Maior % no local</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-lbl" style="color:var(--warn-txt)">Itens Anomalia</div>
+        <div class="kpi-val" style="color:var(--warn-txt)" id="ka-pos-anom">—</div>
+        <div class="kpi-sub">Precisam ser realocados</div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="ct">Locais com anomalia — itens para realocação
+        <button class="tbtn tbtn-outline" style="font-size:11px;padding:5px 12px;background:var(--bad-bg);color:var(--bad-txt);border:1px solid #fca5a5;" onclick="exportarRelatorioAnomalias()">
+          📄 Exportar relatório
+        </button>
+      </div>
+      <div id="anom-list">
+        <div class="empty"><div class="empty-icon">✅</div><p>Nenhuma anomalia identificada</p></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TAB: LOCAIS -->
+  <div class="tc" id="tc-locais">
+    <div class="card">
+      <div class="ct">Todos os locais contados
+        <input type="text" id="filtro-local" placeholder="Filtrar local..." oninput="filtrarLocais()"
+               style="padding:5px 10px;border:1px solid var(--brd);border-radius:6px;font-size:12px;outline:none;width:160px;">
+      </div>
+      <div class="tw">
+        <table>
+          <thead><tr>
+            <th>Localização</th>
+            <th>Produto</th>
+            <th>Cor</th>
+            <th>Tamanho</th>
+            <th class="r">Quantidade</th>
+            <th>Status</th>
+            <th>Observação</th>
+            <th>Colaborador</th>
+          </tr></thead>
+          <tbody id="tb-locais"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- TAB: HISTÓRICO -->
+  <div class="tc" id="tc-historico">
+    <div class="card">
+      <div class="ct">Todos os lançamentos</div>
+      <div class="tw">
+        <table>
+          <thead><tr>
+            <th>Data/Hora</th>
+            <th>Colaborador</th>
+            <th>SKU</th>
+            <th>EAN</th>
+            <th>Produto</th>
+            <th>Cor</th>
+            <th>Tam</th>
+            <th>Localização</th>
+            <th class="r">Qtd</th>
+            <th>Observação</th>
+            <th>Posição</th>
+          </tr></thead>
+          <tbody id="tb-historico"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer"><strong>Pangeia 96</strong> · Dashboard de Inventário · Dados via Supabase</div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<script>
+// ── SUPABASE CONFIG ────────────────────────────────────────────
+var SB_URL = 'https://cgbothvdwkziumvbdsck.supabase.co';
+var SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNnYm90aHZkd2t6aXVtdmJkc2NrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ4MTM4NzQsImV4cCI6MjEwMDM4OTg3NH0.hfCnjhaHwiGv_vQ-jz5GEFmkrWiebB2FMos_SjjOrZM';
+var SB_H = {'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY};
+function sbGet(p){ return fetch(SB_URL+'/rest/v1/'+p,{headers:SB_H}).then(function(r){return r.json();}); }
+
+// ── STATE ──────────────────────────────────────────────────────
+var invAtual = null;
+var dadosAtual = [];
+var charts = {};
+var autoRefresh = null;
+
+// ── INIT ───────────────────────────────────────────────────────
+window.addEventListener('load', function(){
+  carregarInventarios();
+  // Auto-refresh a cada 30s
+  autoRefresh = setInterval(function(){ if(invAtual) carregarDados(); }, 30000);
+});
+
+function carregarInventarios(){
+  sbGet('inventarios?select=id,nome,status,criado_em,lancamentos&order=criado_em.desc')
+    .then(function(rows){
+      var sel = document.getElementById('sel-inv');
+      sel.innerHTML = '<option value="">— Selecione um inventário —</option>';
+      rows.forEach(function(inv){
+        var opt = document.createElement('option');
+        opt.value = inv.id;
+        opt.textContent = (inv.status==='ABERTO'?'🟢 ':'🔴 ')+inv.nome+' ('+inv.lancamentos+' lançamentos)';
+        sel.appendChild(opt);
+      });
+      // Seleciona automaticamente o primeiro aberto
+      var aberto = rows.find(function(r){ return r.status==='ABERTO'; });
+      if(aberto){ sel.value = aberto.id; invAtual = aberto; carregarDados(); }
+    });
+}
+
+function selecionarInventario(){
+  var sel = document.getElementById('sel-inv');
+  invAtual = {id: sel.value, nome: sel.options[sel.selectedIndex].text};
+  if(sel.value) carregarDados();
+}
+
+function carregarDados(){
+  if(!invAtual || !invAtual.id) return;
+  // Busca nome do inventário via select options
+  var sel = document.getElementById('sel-inv');
+  var invNome = '';
+  for(var i=0;i<sel.options.length;i++){
+    if(sel.options[i].value === invAtual.id){
+      invNome = sel.options[i].text.replace(/^[🟢🔴] /,'').split(' (')[0];
+      break;
+    }
+  }
+
+  sbGet('contagens?inventario=eq.'+encodeURIComponent(invNome)+'&order=criado_em.asc&limit=5000')
+    .then(function(rows){
+      dadosAtual = rows || [];
+      renderTudo();
+      toast('✅ Dados atualizados — '+dadosAtual.length+' registros');
+    })
+    .catch(function(){ toast('❌ Erro ao carregar dados'); });
+}
+
+// ── RENDER PRINCIPAL ───────────────────────────────────────────
+function renderTudo(){
+  var dados = dadosAtual.filter(function(r){ return r.colaborador !== 'SISTEMA'; });
+  renderKPIs(dados);
+  renderVisaoGeral(dados);
+  renderColaboradores(dados);
+  renderAnomalias(dados);
+  renderLocais(dadosAtual);
+  renderHistorico(dadosAtual);
+}
+
+// ── KPIs ───────────────────────────────────────────────────────
+function renderKPIs(dados){
+  var totalPecas = dados.reduce(function(s,r){ return s+(parseInt(r.quantidade)||0); },0);
+  var skusUnicos = new Set(dados.filter(function(r){ return r.sku; }).map(function(r){ return r.sku+'|'+r.cor+'|'+r.tamanho; })).size;
+  var locaisUnicos = new Set(dados.map(function(r){ return r.localizacao; })).size;
+  var anomalias = dados.filter(function(r){ return r.observacoes && r.observacoes.indexOf('ANOMALIA')>=0; });
+  var locaisAnom = new Set(anomalias.map(function(r){ return r.localizacao; })).size;
+  var colabs = new Set(dados.map(function(r){ return r.colaborador; })).size;
+
+  // Datas
+  var datas = dados.filter(function(r){ return r.criado_em; }).map(function(r){ return new Date(r.criado_em); });
+  datas.sort(function(a,b){ return a-b; });
+  var inicio = datas.length ? datas[0] : null;
+  var fim    = datas.length ? datas[datas.length-1] : null;
+  var durMin = inicio && fim ? Math.round((fim-inicio)/60000) : 0;
+  var durStr = durMin >= 60 ? Math.floor(durMin/60)+'h '+(durMin%60)+'min' : durMin+'min';
+  var efic   = locaisUnicos > 0 ? Math.round((locaisUnicos-locaisAnom)/locaisUnicos*100) : 0;
+
+  setText('k-pecas', totalPecas.toLocaleString('pt-BR'));
+  setText('k-pecas-sub', 'peças contadas');
+  setText('k-skus', skusUnicos);
+  setText('k-skus-sub', 'SKUs únicos');
+  setText('k-locais', locaisUnicos);
+  setText('k-locais-sub', 'localizações');
+  setText('k-anom', anomalias.length);
+  setText('k-anom-sub', locaisAnom+' locais afetados');
+  setText('k-colab', colabs);
+  setText('k-colab-sub', 'pessoas envolvidas');
+  setText('k-inicio', inicio ? fmtHora(inicio) : '—');
+  setText('k-inicio-sub', inicio ? fmtData(inicio) : 'Aguardando');
+  setText('k-fim', fim ? fmtHora(fim) : '—');
+  setText('k-fim-sub', fim ? fmtData(fim) : '—');
+  setText('k-duracao', durMin > 0 ? durStr : '—');
+  setText('k-efic', efic > 0 ? efic+'%' : '—');
+  setText('k-efic-sub', 'locais sem anomalia');
+  if(locaisAnom > 0){
+    document.getElementById('k-efic-ft').style.display='';
+    setText('k-efic-anom', locaisAnom+' locais');
+  }
+}
+
+// ── VISÃO GERAL ────────────────────────────────────────────────
+function renderVisaoGeral(dados){
+  // Barras de colaboradores
+  var porColab = {};
+  dados.forEach(function(r){
+    var n = r.colaborador;
+    if(!porColab[n]) porColab[n] = 0;
+    porColab[n] += parseInt(r.quantidade)||0;
+  });
+  var totalPecas = Object.values(porColab).reduce(function(s,v){ return s+v; },0);
+  var sorted = Object.entries(porColab).sort(function(a,b){ return b[1]-a[1]; });
+  var colores = ['#592C95','#AE76E5','#185FA5','#0F6E56','#7c3aed','#0891b2','#EF9F27'];
+  var barsHTML = sorted.map(function(e,i){
+    var pct = totalPecas > 0 ? Math.round(e[1]/totalPecas*100) : 0;
+    return '<div class="colab-row">'+
+      '<div class="colab-name">'+e[0]+'</div>'+
+      '<div class="colab-bar-wrap"><div class="colab-bar" style="width:'+pct+'%;background:'+colores[i%colores.length]+'"></div></div>'+
+      '<div class="colab-num">'+e[1].toLocaleString('pt-BR')+'</div>'+
+      '<div class="colab-pct">'+pct+'%</div>'+
+      '</div>';
+  }).join('');
+  document.getElementById('colab-bars').innerHTML = barsHTML || '<div class="empty"><div class="empty-icon">📊</div><p>Sem dados</p></div>';
+
+  // Chart por hora
+  var porHora = {};
+  for(var h=0;h<24;h++) porHora[h]=0;
+  dados.forEach(function(r){
+    if(r.criado_em){
+      var hora = new Date(r.criado_em).getHours();
+      porHora[hora] += parseInt(r.quantidade)||0;
+    }
+  });
+  var horasAtivas = Object.entries(porHora).filter(function(e){ return e[1]>0; });
+  var horaMin = horasAtivas.length ? parseInt(horasAtivas[0][0]) : 0;
+  var horaMax = horasAtivas.length ? parseInt(horasAtivas[horasAtivas.length-1][0]) : 23;
+  var labels = [], vals = [];
+  for(var h2=horaMin;h2<=horaMax;h2++){ labels.push(h2+'h'); vals.push(porHora[h2]); }
+
+  renderChart('chart-hora','bar',labels,vals,'Peças','#592C95');
+
+  // Evolução acumulada
+  var evolLabels=[], evolVals=[], acum=0;
+  var agrupado = {};
+  dados.forEach(function(r){
+    if(r.criado_em){
+      var k = r.criado_em.substring(0,16).replace('T',' ');
+      agrupado[k] = (agrupado[k]||0) + (parseInt(r.quantidade)||0);
+    }
+  });
+  Object.keys(agrupado).sort().slice(-40).forEach(function(k){
+    acum += agrupado[k];
+    evolLabels.push(k.substring(11,16));
+    evolVals.push(acum);
+  });
+  renderChart('chart-evolucao','line',evolLabels,evolVals,'Acumulado','#AE76E5');
+
+  // Donut status
+  var vazios = dadosAtual.filter(function(r){ return r.produto==='VAZIO'; }).length;
+  var anom   = dadosAtual.filter(function(r){ return r.observacoes&&r.observacoes.indexOf('ANOMALIA')>=0; }).length;
+  var norm   = dadosAtual.length - vazios - anom;
+  renderDonut('chart-status',['Normal','Anomalia','Vazio'],[norm,anom,vazios],['#0F6E56','#A32D2D','#854d0e']);
+  document.getElementById('status-legend').innerHTML =
+    '<div style="display:flex;gap:12px;font-size:11px;flex-wrap:wrap;">'+
+    leg('#0F6E56','Normal',norm)+leg('#A32D2D','Anomalia',anom)+leg('#854d0e','Vazio',vazios)+'</div>';
+}
+
+function leg(cor,label,val){
+  return '<span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:'+cor+';margin-right:4px;vertical-align:middle;"></span>'+label+': <strong>'+val+'</strong></span>';
+}
+
+// ── COLABORADORES ──────────────────────────────────────────────
+function renderColaboradores(dados){
+  var porColab = {};
+  dados.forEach(function(r){
+    var n = r.colaborador;
+    if(!porColab[n]) porColab[n] = {pecas:0,lanc:0,anom:0,vazios:0,datas:[]};
+    porColab[n].pecas += parseInt(r.quantidade)||0;
+    porColab[n].lanc++;
+    if(r.observacoes&&r.observacoes.indexOf('ANOMALIA')>=0) porColab[n].anom++;
+    if(r.produto==='VAZIO') porColab[n].vazios++;
+    if(r.criado_em) porColab[n].datas.push(new Date(r.criado_em));
+  });
+
+  var totalPecas = Object.values(porColab).reduce(function(s,v){ return s+v.pecas; },0);
+  var sorted = Object.entries(porColab).sort(function(a,b){ return b[1].pecas-a[1].pecas; });
+  var nomes = sorted.map(function(e){ return e[0]; });
+  var pecas = sorted.map(function(e){ return e[1].pecas; });
+  var lancs = sorted.map(function(e){ return e[1].lanc; });
+  var cores = ['#592C95','#AE76E5','#185FA5','#0F6E56','#7c3aed','#0891b2'];
+
+  renderChartMulti('chart-colab','bar',nomes,pecas,'Peças',cores);
+  renderChartMulti('chart-lanc','bar',nomes,lancs,'Lançamentos',cores);
+
+  var tbody = document.getElementById('tb-colab');
+  tbody.innerHTML = sorted.map(function(e){
+    var n=e[0], d=e[1];
+    var pct = totalPecas>0 ? Math.round(d.pecas/totalPecas*100) : 0;
+    d.datas.sort(function(a,b){ return a-b; });
+    var ini = d.datas.length ? fmtHora(d.datas[0]) : '—';
+    var fim = d.datas.length ? fmtHora(d.datas[d.datas.length-1]) : '—';
+    return '<tr>'+
+      '<td><strong>'+n+'</strong></td>'+
+      '<td class="r">'+d.lanc+'</td>'+
+      '<td class="r">'+d.pecas.toLocaleString('pt-BR')+'</td>'+
+      '<td class="r"><span class="pill" style="background:var(--lav);color:var(--roxo);">'+pct+'%</span></td>'+
+      '<td class="r">'+(d.anom>0?'<span class="pill p-bd">'+d.anom+'</span>':'<span class="pill p-ok">0</span>')+'</td>'+
+      '<td class="r">'+d.vazios+'</td>'+
+      '<td>'+ini+'</td>'+
+      '<td>'+fim+'</td>'+
+      '</tr>';
+  }).join('');
+}
+
+// ── ANOMALIAS ──────────────────────────────────────────────────
+function renderAnomalias(dados){
+  var anomRows = dados.filter(function(r){ return r.observacoes&&r.observacoes.indexOf('ANOMALIA')>=0; });
+  var locaisAnom = {};
+  anomRows.forEach(function(r){
+    var loc = r.localizacao;
+    if(!locaisAnom[loc]) locaisAnom[loc] = [];
+    locaisAnom[loc].push(r);
+  });
+  var posCorreta = dados.filter(function(r){ return r.posicao==='POSIÇÃO CORRETA'; }).length;
+  var posAnom    = dados.filter(function(r){ return r.posicao==='ITEM ANOMALIA'; }).length;
+
+  setText('ka-total', Object.keys(locaisAnom).length);
+  setText('ka-pos-correta', posCorreta);
+  setText('ka-pos-anom', posAnom);
+
+  var el = document.getElementById('anom-list');
+  if(!Object.keys(locaisAnom).length){
+    el.innerHTML = '<div class="empty"><div class="empty-icon">✅</div><p>Nenhuma anomalia identificada</p></div>';
+    return;
+  }
+  el.innerHTML = Object.entries(locaisAnom).sort(function(a,b){ return b[1].length-a[1].length; }).map(function(e){
+    var loc=e[0], itens=e[1];
+    var totalLoc = itens.reduce(function(s,r){ return s+(parseInt(r.quantidade)||0); },0);
+    return '<div class="anom-row">'+
+      '<div>'+
+        '<div class="anom-loc">📍 '+loc+'</div>'+
+        '<div class="anom-info" style="margin-top:4px;">'+
+          itens.map(function(r){
+            var pct = totalLoc>0?Math.round((parseInt(r.quantidade)||0)/totalLoc*100):0;
+            var badge = r.posicao==='POSIÇÃO CORRETA' ? '🟢' : '🔴';
+            return badge+' '+r.produto+' '+r.cor+' '+r.tamanho+' — '+r.quantidade+'pç ('+pct+'%)';
+          }).join(' &nbsp;|&nbsp; ')+
+        '</div>'+
+      '</div>'+
+      '<span class="anom-badge">'+itens.length+' itens</span>'+
+      '</div>';
+  }).join('');
+}
+
+// ── LOCAIS ─────────────────────────────────────────────────────
+var _locaisData = [];
+function renderLocais(dados){
+  _locaisData = dados;
+  filtrarLocais();
+}
+function filtrarLocais(){
+  var q = (document.getElementById('filtro-local').value||'').toLowerCase();
+  var filtrado = _locaisData.filter(function(r){
+    return !q || r.localizacao.toLowerCase().indexOf(q)>=0;
+  });
+  var tbody = document.getElementById('tb-locais');
+  tbody.innerHTML = filtrado.map(function(r){
+    var statusClass = r.produto==='VAZIO' ? 'p-wn' : (r.observacoes&&r.observacoes.indexOf('ANOMALIA')>=0 ? 'p-bd' : 'p-ok');
+    var statusLabel = r.produto==='VAZIO' ? 'Vazio' : (r.observacoes&&r.observacoes.indexOf('ANOMALIA')>=0 ? 'Anomalia' : 'Normal');
+    return '<tr>'+
+      '<td><strong>'+r.localizacao+'</strong></td>'+
+      '<td>'+r.produto+'</td>'+
+      '<td>'+r.cor+'</td>'+
+      '<td>'+r.tamanho+'</td>'+
+      '<td class="r">'+r.quantidade+'</td>'+
+      '<td><span class="pill '+statusClass+'">'+statusLabel+'</span></td>'+
+      '<td>'+(r.observacoes||'')+'</td>'+
+      '<td>'+r.colaborador+'</td>'+
+      '</tr>';
+  }).join('');
+}
+
+// ── HISTÓRICO ──────────────────────────────────────────────────
+function renderHistorico(dados){
+  var tbody = document.getElementById('tb-historico');
+  tbody.innerHTML = dados.map(function(r){
+    var obs = r.observacoes||'';
+    var obsCls = obs.indexOf('ANOMALIA')>=0 ? 'style="color:var(--bad);font-weight:700;"' : '';
+    var pos = r.posicao||'';
+    var posCls = pos==='POSIÇÃO CORRETA'?'p-ok':pos==='ITEM ANOMALIA'?'p-bd':'';
+    return '<tr>'+
+      '<td style="white-space:nowrap;font-size:11px;">'+fmtDatetime(r.criado_em)+'</td>'+
+      '<td>'+r.colaborador+'</td>'+
+      '<td style="font-family:monospace;font-size:11px;">'+r.sku+'</td>'+
+      '<td style="font-family:monospace;font-size:11px;">'+r.ean+'</td>'+
+      '<td>'+r.produto+'</td>'+
+      '<td>'+r.cor+'</td>'+
+      '<td>'+r.tamanho+'</td>'+
+      '<td><strong>'+r.localizacao+'</strong></td>'+
+      '<td class="r">'+r.quantidade+'</td>'+
+      '<td '+obsCls+'>'+obs+'</td>'+
+      '<td>'+(pos?'<span class="pill '+posCls+'">'+pos+'</span>':'')+'</td>'+
+      '</tr>';
+  }).join('');
+}
+
+// ── EXPORTAR EXCEL ────────────────────────────────────────────
+function exportarExcel(){
+  if(!dadosAtual.length){ toast('⚠️ Sem dados para exportar'); return; }
+  var wb = XLSX.utils.book_new();
+
+  // Aba contagens
+  var contRows = [['Data/Hora','Inventário','Colaborador','Tipo','SKU','EAN','Produto','Cor','Tamanho','Localização','Quantidade','Observações','Posição']];
+  dadosAtual.forEach(function(r){
+    contRows.push([r.criado_em,r.inventario,r.colaborador,r.tipo,r.sku,r.ean,r.produto,r.cor,r.tamanho,r.localizacao,r.quantidade,r.observacoes,r.posicao]);
+  });
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(contRows), 'Contagens');
+
+  // Aba anomalias
+  var anomRows = [['Localização','Produto','Cor','Tamanho','Quantidade','Posição','Colaborador','Data/Hora']];
+  dadosAtual.filter(function(r){ return r.observacoes&&r.observacoes.indexOf('ANOMALIA')>=0; }).forEach(function(r){
+    anomRows.push([r.localizacao,r.produto,r.cor,r.tamanho,r.quantidade,r.posicao,r.colaborador,r.criado_em]);
+  });
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(anomRows), 'Anomalias');
+
+  // Aba resumo por colaborador
+  var porColab = {};
+  dadosAtual.filter(function(r){return r.colaborador!=='SISTEMA';}).forEach(function(r){
+    var n=r.colaborador;
+    if(!porColab[n]) porColab[n]={pecas:0,lanc:0,anom:0};
+    porColab[n].pecas += parseInt(r.quantidade)||0;
+    porColab[n].lanc++;
+    if(r.observacoes&&r.observacoes.indexOf('ANOMALIA')>=0) porColab[n].anom++;
+  });
+  var total = Object.values(porColab).reduce(function(s,v){ return s+v.pecas; },0);
+  var colabRows = [['Colaborador','Lançamentos','Peças','% do Total','Anomalias']];
+  Object.entries(porColab).sort(function(a,b){return b[1].pecas-a[1].pecas;}).forEach(function(e){
+    var pct = total>0?Math.round(e[1].pecas/total*100):0;
+    colabRows.push([e[0],e[1].lanc,e[1].pecas,pct+'%',e[1].anom]);
+  });
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(colabRows), 'Colaboradores');
+
+  var inv = document.getElementById('sel-inv');
+  var nomeInv = inv.options[inv.selectedIndex]?inv.options[inv.selectedIndex].text.replace(/^[🟢🔴] /,'').split(' (')[0]:'inventario';
+  XLSX.writeFile(wb, 'Inventario_'+nomeInv.replace(/[^a-zA-Z0-9]/g,'_')+'.xlsx');
+  toast('✅ Excel exportado!');
+}
+
+// ── EXPORTAR RELATÓRIO ANOMALIAS ───────────────────────────────
+function exportarRelatorioAnomalias(){
+  var anomRows = dadosAtual.filter(function(r){ return r.observacoes&&r.observacoes.indexOf('ANOMALIA')>=0; });
+  if(!anomRows.length){ toast('✅ Nenhuma anomalia para exportar'); return; }
+  var wb = XLSX.utils.book_new();
+  var rows = [['Localização','Produto','Cor','Tamanho','Quantidade','Posição','Colaborador','Data/Hora','Ação Recomendada']];
+  anomRows.forEach(function(r){
+    var acao = r.posicao==='ITEM ANOMALIA' ? 'Realocar para local correto' : 'Verificar com equipe';
+    rows.push([r.localizacao,r.produto,r.cor,r.tamanho,r.quantidade,r.posicao,r.colaborador,r.criado_em,acao]);
+  });
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(rows), 'Relatório Anomalias');
+  XLSX.writeFile(wb, 'Anomalias_'+new Date().toISOString().substring(0,10)+'.xlsx');
+  toast('✅ Relatório de anomalias exportado!');
+}
+
+// ── EXPORTAR PDF ───────────────────────────────────────────────
+function exportarPDF(){
+  if(!dadosAtual.length){ toast('⚠️ Sem dados para exportar'); return; }
+  var {jsPDF} = window.jspdf;
+  var doc = new jsPDF('l','mm','a4');
+  var inv = document.getElementById('sel-inv');
+  var nomeInv = inv.options[inv.selectedIndex]?inv.options[inv.selectedIndex].text.replace(/^[🟢🔴] /,'').split(' (')[0]:'Inventário';
+
+  // Header
+  doc.setFillColor(89,44,149);
+  doc.rect(0,0,297,28,'F');
+  doc.setTextColor(255,255,255);
+  doc.setFont('helvetica','bold');
+  doc.setFontSize(16);
+  doc.text('PANGEIA 96 · Dashboard de Inventário',14,12);
+  doc.setFontSize(10);
+  doc.setFont('helvetica','normal');
+  doc.text(nomeInv,14,20);
+  doc.text('Gerado em '+fmtDatetime(new Date().toISOString()),200,20);
+
+  // KPIs
+  var dados = dadosAtual.filter(function(r){ return r.colaborador!=='SISTEMA'; });
+  var totalPecas = dados.reduce(function(s,r){ return s+(parseInt(r.quantidade)||0); },0);
+  var skus = new Set(dados.filter(function(r){return r.sku;}).map(function(r){return r.sku+'|'+r.cor+'|'+r.tamanho;})).size;
+  var locais = new Set(dados.map(function(r){return r.localizacao;})).size;
+  var anomalias = dados.filter(function(r){return r.observacoes&&r.observacoes.indexOf('ANOMALIA')>=0;});
+  var locaisAnom = new Set(anomalias.map(function(r){return r.localizacao;})).size;
+  var colabs = new Set(dados.map(function(r){return r.colaborador;})).size;
+  var efic = locais>0?Math.round((locais-locaisAnom)/locais*100):0;
+
+  var kpis = [
+    {l:'Total de Peças',v:totalPecas.toLocaleString('pt-BR')},
+    {l:'SKUs Únicos',v:skus},
+    {l:'Locais Contados',v:locais},
+    {l:'Anomalias',v:anomalias.length+' ('+locaisAnom+' locais)'},
+    {l:'Colaboradores',v:colabs},
+    {l:'Eficiência',v:efic+'%'},
+  ];
+  var kx=14, ky=34, kw=44;
+  doc.setFontSize(7);
+  kpis.forEach(function(k,i){
+    var x=kx+i*kw;
+    doc.setFillColor(245,238,251);
+    doc.roundedRect(x,ky,kw-2,18,2,2,'F');
+    doc.setTextColor(107,91,142);
+    doc.setFont('helvetica','normal');
+    doc.text(k.l,x+2,ky+5);
+    doc.setTextColor(89,44,149);
+    doc.setFont('helvetica','bold');
+    doc.setFontSize(13);
+    doc.text(String(k.v),x+2,ky+14);
+    doc.setFontSize(7);
+  });
+
+  // Tabela por colaborador
+  doc.setTextColor(89,44,149);
+  doc.setFont('helvetica','bold');
+  doc.setFontSize(9);
+  doc.text('PARTICIPAÇÃO POR COLABORADOR',14,60);
+
+  var porColab = {};
+  dados.forEach(function(r){
+    var n=r.colaborador;
+    if(!porColab[n]) porColab[n]={pecas:0,lanc:0,anom:0};
+    porColab[n].pecas += parseInt(r.quantidade)||0;
+    porColab[n].lanc++;
+    if(r.observacoes&&r.observacoes.indexOf('ANOMALIA')>=0) porColab[n].anom++;
+  });
+  var colabBody = Object.entries(porColab).sort(function(a,b){return b[1].pecas-a[1].pecas;}).map(function(e){
+    var pct = totalPecas>0?Math.round(e[1].pecas/totalPecas*100):0;
+    return [e[0],e[1].lanc,e[1].pecas.toLocaleString('pt-BR'),pct+'%',e[1].anom];
+  });
+
+  doc.autoTable({
+    startY:62,
+    head:[['Colaborador','Lançamentos','Peças','% Total','Anomalias']],
+    body:colabBody,
+    styles:{fontSize:9,cellPadding:3},
+    headStyles:{fillColor:[89,44,149],textColor:255,fontStyle:'bold'},
+    alternateRowStyles:{fillColor:[245,238,251]},
+    margin:{left:14,right:14},
+    tableWidth:120
+  });
+
+  // Tabela anomalias
+  if(anomalias.length){
+    var afterY = doc.lastAutoTable.finalY + 8;
+    doc.setTextColor(163,45,45);
+    doc.setFont('helvetica','bold');
+    doc.setFontSize(9);
+    doc.text('ANOMALIAS IDENTIFICADAS — ITENS PARA AUDITORIA',14,afterY);
+
+    var anomBody = anomalias.map(function(r){
+      return [r.localizacao,r.produto,r.cor,r.tamanho,r.quantidade,r.posicao||'—',r.colaborador];
+    });
+    doc.autoTable({
+      startY:afterY+2,
+      head:[['Localização','Produto','Cor','Tamanho','Qtd','Posição','Colaborador']],
+      body:anomBody,
+      styles:{fontSize:8,cellPadding:3},
+      headStyles:{fillColor:[163,45,45],textColor:255,fontStyle:'bold'},
+      alternateRowStyles:{fillColor:[254,226,226]},
+      margin:{left:14,right:14}
+    });
+  }
+
+  // Footer
+  var pageH = doc.internal.pageSize.height;
+  doc.setFillColor(89,44,149);
+  doc.rect(0,pageH-10,297,10,'F');
+  doc.setTextColor(255,255,255);
+  doc.setFontSize(7);
+  doc.setFont('helvetica','normal');
+  doc.text('Pangeia 96 · Dashboard de Inventário · '+fmtDatetime(new Date().toISOString()),14,pageH-4);
+
+  doc.save('Dashboard_'+nomeInv.replace(/[^a-zA-Z0-9]/g,'_')+'_'+new Date().toISOString().substring(0,10)+'.pdf');
+  toast('✅ PDF exportado!');
+}
+
+// ── CHARTS ────────────────────────────────────────────────────
+function renderChart(id, type, labels, data, label, color){
+  if(charts[id]) charts[id].destroy();
+  var ctx = document.getElementById(id);
+  if(!ctx) return;
+  charts[id] = new Chart(ctx, {
+    type: type,
+    data: {
+      labels: labels,
+      datasets:[{
+        label: label,
+        data: data,
+        backgroundColor: type==='line' ? 'rgba(89,44,149,.1)' : color+'cc',
+        borderColor: color,
+        borderWidth: 2,
+        fill: type==='line',
+        tension: 0.4,
+        pointRadius: 3
+      }]
+    },
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,ticks:{font:{size:10}}},x:{ticks:{font:{size:10}}}}}
+  });
+}
+
+function renderChartMulti(id, type, labels, data, label, colors){
+  if(charts[id]) charts[id].destroy();
+  var ctx = document.getElementById(id);
+  if(!ctx) return;
+  charts[id] = new Chart(ctx, {
+    type: type,
+    data:{
+      labels: labels,
+      datasets:[{
+        label: label,
+        data: data,
+        backgroundColor: colors,
+        borderWidth: 0
+      }]
+    },
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,ticks:{font:{size:10}}},x:{ticks:{font:{size:10}}}}}
+  });
+}
+
+function renderDonut(id, labels, data, colors){
+  if(charts[id]) charts[id].destroy();
+  var ctx = document.getElementById(id);
+  if(!ctx) return;
+  charts[id] = new Chart(ctx, {
+    type:'doughnut',
+    data:{labels:labels,datasets:[{data:data,backgroundColor:colors,borderWidth:2,borderColor:'#fff'}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}}}
+  });
+}
+
+// ── TABS ──────────────────────────────────────────────────────
+function goTab(id, btn){
+  document.querySelectorAll('.tc').forEach(function(e){ e.classList.remove('active'); });
+  document.querySelectorAll('.tab').forEach(function(e){ e.classList.remove('active'); });
+  document.getElementById('tc-'+id).classList.add('active');
+  btn.classList.add('active');
+}
+
+// ── UTILS ─────────────────────────────────────────────────────
+function setText(id, val){ var e=document.getElementById(id); if(e) e.textContent=val; }
+function fmtHora(d){ return d instanceof Date ? d.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}) : String(d).substring(11,16); }
+function fmtData(d){ return d instanceof Date ? d.toLocaleDateString('pt-BR') : String(d).substring(0,10); }
+function fmtDatetime(s){ if(!s) return '—'; return String(s).substring(0,16).replace('T',' '); }
+
+function toast(msg){
+  var el=document.getElementById('toast');
+  el.textContent=msg; el.classList.add('show');
+  setTimeout(function(){ el.classList.remove('show'); },3000);
+}
+</script>
+</body>
+</html>
