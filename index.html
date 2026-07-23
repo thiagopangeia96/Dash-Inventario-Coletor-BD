@@ -143,6 +143,23 @@ td.r{text-align:right;font-weight:600;}
     </div>
   </div>
 
+  <!-- FILTRO DATA (só para Contagem Livre) -->
+  <div id="filtro-data-wrap" style="display:none;background:#fff;border-radius:12px;border:1px solid var(--brd);padding:12px 18px;margin-bottom:14px;display:none;align-items:center;gap:12px;flex-wrap:wrap;">
+    <span style="font-size:12px;font-weight:700;color:var(--roxo);">🔍 Filtrar Contagem Livre:</span>
+    <div style="display:flex;align-items:center;gap:6px;">
+      <label style="font-size:11px;color:var(--txt-s);font-weight:600;">De</label>
+      <input type="date" id="filtro-dt-ini" style="padding:6px 10px;border:1px solid var(--brd);border-radius:8px;font-size:12px;font-family:inherit;outline:none;color:var(--txt);">
+    </div>
+    <div style="display:flex;align-items:center;gap:6px;">
+      <label style="font-size:11px;color:var(--txt-s);font-weight:600;">Até</label>
+      <input type="date" id="filtro-dt-fim" style="padding:6px 10px;border:1px solid var(--brd);border-radius:8px;font-size:12px;font-family:inherit;outline:none;color:var(--txt);">
+    </div>
+    <button onclick="setPeriodo(0)" class="tbtn tbtn-outline" style="font-size:11px;padding:6px 12px;background:var(--lav-l);color:var(--roxo);border:1px solid var(--lav);">Hoje</button>
+    <button onclick="setPeriodo(7)" class="tbtn tbtn-outline" style="font-size:11px;padding:6px 12px;background:var(--lav-l);color:var(--roxo);border:1px solid var(--lav);">7 dias</button>
+    <button onclick="setPeriodo(30)" class="tbtn tbtn-outline" style="font-size:11px;padding:6px 12px;background:var(--lav-l);color:var(--roxo);border:1px solid var(--lav);">30 dias</button>
+    <button onclick="carregarDados()" class="tbtn tbtn-yellow" style="font-size:11px;padding:6px 16px;">Aplicar</button>
+  </div>
+
   <!-- KPIs LINHA 1 -->
   <div class="kpi-grid r5" id="kpi-row1">
     <div class="kpi">
@@ -373,7 +390,7 @@ var autoRefresh = null;
 window.addEventListener('load', function(){
   carregarInventarios();
   // Auto-refresh a cada 30s
-  autoRefresh = setInterval(function(){ if(invAtual) carregarDados(); }, 30000);
+  autoRefresh = setInterval(function(){ if(invAtual && invAtual.id) carregarDados(); }, 30000);
 });
 
 function carregarInventarios(){
@@ -381,37 +398,64 @@ function carregarInventarios(){
     .then(function(rows){
       var sel = document.getElementById('sel-inv');
       sel.innerHTML = '<option value="">— Selecione um inventário —</option>';
+      // Opção Contagem Livre
+      sel.innerHTML += '<option value="__LIVRE__">🔍 CONTAGEM LIVRE</option>';
       rows.forEach(function(inv){
         var opt = document.createElement('option');
         opt.value = inv.id;
+        opt.setAttribute('data-nome', inv.nome);
         opt.textContent = (inv.status==='ABERTO'?'🟢 ':'🔴 ')+inv.nome+' ('+inv.lancamentos+' lançamentos)';
         sel.appendChild(opt);
       });
       // Seleciona automaticamente o primeiro aberto
       var aberto = rows.find(function(r){ return r.status==='ABERTO'; });
-      if(aberto){ sel.value = aberto.id; invAtual = aberto; carregarDados(); }
+      if(aberto){
+        sel.value = aberto.id;
+        invAtual = {id: aberto.id, nome: aberto.nome};
+        carregarDados();
+      }
     });
 }
 
 function selecionarInventario(){
   var sel = document.getElementById('sel-inv');
-  invAtual = {id: sel.value, nome: sel.options[sel.selectedIndex].text};
-  if(sel.value) carregarDados();
+  var opt = sel.options[sel.selectedIndex];
+  var id = sel.value;
+  var nome = id === '__LIVRE__' ? 'CONTAGEM LIVRE' : (opt.getAttribute('data-nome') || opt.text);
+  invAtual = {id: id, nome: nome};
+  // Mostra filtro de data só para Contagem Livre
+  var wrap = document.getElementById('filtro-data-wrap');
+  if(id === '__LIVRE__'){
+    wrap.style.display = 'flex';
+    // Default: hoje
+    if(!document.getElementById('filtro-dt-ini').value) setPeriodo(0);
+  } else {
+    wrap.style.display = 'none';
+  }
+  if(id) carregarDados();
+}
+
+function setPeriodo(dias){
+  var hoje = new Date();
+  var ini = new Date();
+  if(dias > 0) ini.setDate(hoje.getDate() - dias);
+  document.getElementById('filtro-dt-ini').value = ini.toISOString().substring(0,10);
+  document.getElementById('filtro-dt-fim').value = hoje.toISOString().substring(0,10);
 }
 
 function carregarDados(){
   if(!invAtual || !invAtual.id) return;
-  // Busca nome do inventário via select options
-  var sel = document.getElementById('sel-inv');
-  var invNome = '';
-  for(var i=0;i<sel.options.length;i++){
-    if(sel.options[i].value === invAtual.id){
-      invNome = sel.options[i].text.replace(/^[🟢🔴] /,'').split(' (')[0];
-      break;
-    }
-  }
+  var invNome = invAtual.nome;
 
-  sbGet('contagens?inventario=eq.'+encodeURIComponent(invNome)+'&order=criado_em.asc&limit=5000')
+  var query = 'contagens?inventario=eq.'+encodeURIComponent(invNome)+'&order=criado_em.asc&limit=5000';
+  // Aplica filtro de data para Contagem Livre
+  if(invAtual.id === '__LIVRE__'){
+    var dtIni = document.getElementById('filtro-dt-ini').value;
+    var dtFim = document.getElementById('filtro-dt-fim').value;
+    if(dtIni) query += '&criado_em=gte.'+dtIni+'T00:00:00';
+    if(dtFim) query += '&criado_em=lte.'+dtFim+'T23:59:59';
+  }
+  sbGet(query)
     .then(function(rows){
       dadosAtual = rows || [];
       renderTudo();
@@ -713,8 +757,7 @@ function exportarExcel(){
   });
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(colabRows), 'Colaboradores');
 
-  var inv = document.getElementById('sel-inv');
-  var nomeInv = inv.options[inv.selectedIndex]?inv.options[inv.selectedIndex].text.replace(/^[🟢🔴] /,'').split(' (')[0]:'inventario';
+  var nomeInv = invAtual ? invAtual.nome : 'inventario';
   XLSX.writeFile(wb, 'Inventario_'+nomeInv.replace(/[^a-zA-Z0-9]/g,'_')+'.xlsx');
   toast('✅ Excel exportado!');
 }
@@ -739,8 +782,7 @@ function exportarPDF(){
   if(!dadosAtual.length){ toast('⚠️ Sem dados para exportar'); return; }
   var {jsPDF} = window.jspdf;
   var doc = new jsPDF('l','mm','a4');
-  var inv = document.getElementById('sel-inv');
-  var nomeInv = inv.options[inv.selectedIndex]?inv.options[inv.selectedIndex].text.replace(/^[🟢🔴] /,'').split(' (')[0]:'Inventário';
+  var nomeInv = invAtual ? invAtual.nome : 'Inventário';
 
   // Header
   doc.setFillColor(89,44,149);
